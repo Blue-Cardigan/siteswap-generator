@@ -452,7 +452,7 @@ function App() {
       parsed.data.period
     }`;
 
-  const stageStyle = useMemo<CSSProperties>(
+  const stageStyle = useMemo<CSSProperties & Record<string, string>>(
     () => ({
       "--stage-width": `${STAGE_WIDTH}px`,
       "--stage-ratio": `${STAGE_WIDTH} / ${STAGE_HEIGHT}`,
