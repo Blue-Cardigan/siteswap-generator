@@ -1,6 +1,7 @@
 import {
   type ChangeEvent,
   type CSSProperties,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -252,6 +253,51 @@ const describeFlightTiming = (flight: Flight, beatDuration: number): FlightTimin
   };
 };
 
+type AnimationControllerProps = {
+  plan: ReturnType<typeof buildSimulationPlan> | null;
+  beatDuration: number;
+  isPlaying: boolean;
+  onTimeUpdate: (time: number) => void;
+};
+
+function AnimationController({
+  plan,
+  beatDuration,
+  isPlaying,
+  onTimeUpdate,
+}: AnimationControllerProps) {
+  const totalDuration = plan ? plan.beats * beatDuration : 0;
+
+  useEffect(() => {
+    onTimeUpdate(0);
+  }, [onTimeUpdate]);
+
+  useEffect(() => {
+    if (!plan || totalDuration === 0) {
+      return;
+    }
+
+    let frameId = 0;
+    let lastFrame = performance.now();
+    let time = 0;
+
+    const step = (now: number) => {
+      const delta = now - lastFrame;
+      lastFrame = now;
+      if (isPlaying) {
+        time = (time + delta) % totalDuration;
+        onTimeUpdate(time);
+      }
+      frameId = requestAnimationFrame(step);
+    };
+
+    frameId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frameId);
+  }, [plan, isPlaying, totalDuration, onTimeUpdate]);
+
+  return null;
+}
+
 function App() {
   const [siteswap, setSiteswap] = useState(DEFAULT_SITESWAP);
   const [beatDuration, setBeatDuration] = useState(550);
@@ -284,30 +330,11 @@ function App() {
     return plan.flights.map((flight) => describeFlightTiming(flight, beatDuration));
   }, [plan, beatDuration]);
 
-  useEffect(() => {
-    setTime(0);
-  }, [siteswap, beatDuration]);
+  const handleTimeUpdate = useCallback((newTime: number) => {
+    setTime(newTime);
+  }, []);
 
-  useEffect(() => {
-    if (!plan || totalDuration === 0) {
-      return;
-    }
-
-    let frameId = 0;
-    let lastFrame = performance.now();
-
-    const step = (now: number) => {
-      const delta = now - lastFrame;
-      lastFrame = now;
-      if (isPlaying) {
-        setTime((prev) => (prev + delta) % totalDuration);
-      }
-      frameId = requestAnimationFrame(step);
-    };
-
-    frameId = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frameId);
-  }, [plan, isPlaying, totalDuration]);
+  const animationKey = `${siteswap}-${beatDuration}`;
 
   const handStates = useMemo<Record<Hand, HandState>>(() => {
     const fallback = (hand: Hand): HandState => computeArmPose(hand, getRestPoint(hand));
@@ -435,6 +462,13 @@ function App() {
 
   return (
     <div className="app-shell">
+      <AnimationController
+        key={animationKey}
+        plan={plan}
+        beatDuration={beatDuration}
+        isPlaying={isPlaying}
+        onTimeUpdate={handleTimeUpdate}
+      />
       <header>
         <div>
           <p className="eyebrow">Siteswap visualizer</p>
